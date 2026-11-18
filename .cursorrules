@@ -1,0 +1,55 @@
+# Gastronomicon
+
+Family cookbook and meal planner. Mobile-first. UI copy is Czech. Shared Supabase project: never touch tables outside the `kitchen_` prefix, and never rename the columns below.
+
+## Stack
+
+- Next.js App Router, TypeScript, Tailwind CSS, shadcn/ui, lucide-react, next-themes
+- Supabase via `@supabase/ssr` (`src/lib/supabase/client.ts`, `server.ts`, `middleware.ts`)
+- Next.js 16 route protection lives in `src/proxy.ts` and calls the Supabase middleware helper
+- Auth is shared `auth.users`. Unauthenticated users go to `/login`. A signed-in user without `kitchen_profiles` / `household_id` sees onboarding, not a broken feed.
+
+## Language
+
+All labels, placeholders, buttons, errors, and empty states are Czech.
+Keep these lines exact:
+- Loading rotates: "Počítám pravděpodobnost úspěšného pečení...", "Syntetizuji ingredience z lokálního sektoru...", "Zjišťuji odpověď na život, vesmír a vůbec..."
+- Missing pages start with: "DON'T PANIC. Tuhle stránku v galaxii neevidujeme."
+
+## Interface
+
+- Phone-first while cooking. Touch targets at least 44px. High contrast. Generous spacing. No clutter.
+- Light: linen/cream (`bg-stone-50`, cards white or `bg-stone-100/80`), text `text-slate-800`, accent amber-600.
+- Dark: `bg-slate-950`, cards `bg-slate-900`, text `text-slate-100`, accents emerald-400 / cyan-400.
+- Hitchhiker easter eggs stay quiet.
+
+## Schema (do not rename)
+
+`kitchen_households`: id uuid pk, name text, created_at timestamptz
+
+`kitchen_profiles`: id uuid pk fk auth.users, household_id uuid null fk kitchen_households.id, display_name text null, default_adults int default 2, default_kids int default 2, default_gourmands int default 0, created_at timestamptz
+
+`kitchen_recipes`: id uuid pk, household_id uuid fk kitchen_households.id, title text, description text null, category text default 'main' ('main'|'soup'|'side'|'dessert'|'starter'), prep_time_mins int null, cook_time_mins int null, base_portions int default 4, calories_per_portion int null, kaloricke_tabulky_name text null, is_public boolean default false, image_url text null, created_by uuid null, created_at timestamptz
+
+`kitchen_recipe_ingredients`: id uuid pk, recipe_id uuid fk kitchen_recipes.id, name text, amount numeric null, unit text null, category text null, is_hero boolean default false
+
+`kitchen_recipe_steps`: id uuid pk, recipe_id uuid fk kitchen_recipes.id, step_number int, instruction text
+
+`kitchen_recipe_companions`: recipe_id uuid fk kitchen_recipes.id, companion_id uuid fk kitchen_recipes.id, relation_type text ('side_dish'|'soup'|'dessert')
+
+`kitchen_ai_usage_logs`: id uuid pk, household_id uuid fk kitchen_households.id, user_id uuid null, action_type text ('url_import'|'photo_ocr'|'ai_menu_suggest' and future values), created_at timestamptz
+
+TypeScript for this schema lives in `src/types/database.ts`.
+
+## Domain
+
+- Portion math: adult 1.0, kid 0.6, gourmand 1.5. Equivalent = adults*1 + kids*0.6 + gourmands*1.5. Factor = equivalent / base_portions. Format amounts with Czech locale.
+- `is_hero` marks the ingredient that defines a dish. Pantry staples stay false.
+- Main dishes link companions through `kitchen_recipe_companions`. Selected companions merge into the same scaled checklist.
+- AI imports call `/api/ai/extract-recipe`, which enforces 100 household calls per calendar month in Europe/Prague before Gemini. Log the call, then call the model. The user always confirms the filled form before save.
+
+## Git
+
+- Commit only when the user asks.
+- Never update git config. Never skip hooks. Never force-push. Never amend a pushed commit.
+- Do not commit `.env`, `.env.local`, or credential files. `.env.example` is the template.

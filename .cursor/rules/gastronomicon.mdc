@@ -1,0 +1,15 @@
+---
+description: Gastronomicon language, kitchen_ schema, and mobile UI constraints
+alwaysApply: true
+---
+
+# Gastronomicon
+
+- Write every UI string in Czech. Do not rename `kitchen_` tables or columns. The canonical list is in `.cursorrules` and `src/types/database.ts`.
+- This app shares `auth.users` with another project. Touch only `kitchen_` tables.
+- Mobile-first: 44px touch targets, high contrast, wide spacing.
+- Light theme is warm linen with slate-800 text and amber-600 accents. Dark theme is slate-950/900 with slate-100 text and emerald-400/cyan-400 accents.
+- Loading copy rotates the three Czech galactic lines. Unknown pages start with "DON'T PANIC. Tuhle stránku v galaxii neevidujeme."
+- Portion factor is `(adults + kids*0.6 + gourmands*1.5) / base_portions`.
+- AI routes check the monthly household limit of 100 in `kitchen_ai_usage_logs` before calling Gemini.
+- Commit only when asked. Never commit secrets, force-push, or skip hooks.
