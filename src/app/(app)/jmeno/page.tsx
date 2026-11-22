@@ -26,7 +26,7 @@ async function DisplayNameContent() {
         <p className="font-mono text-[11px] tracking-[0.28em] text-primary">ÚČET</p>
         <CardTitle className="font-heading text-3xl">Uživatelské jméno</CardTitle>
         <CardDescription className="text-base">
-          Jméno, pod kterým vás uvidí ostatní u stolu. Přihlášení zůstává přes e-mail.
+          Stejné jméno jako v boardgamingu. Přihlášení zůstává přes e-mail.
         </CardDescription>
       </CardHeader>
       <CardContent className="flex flex-col gap-4">

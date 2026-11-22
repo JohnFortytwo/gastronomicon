@@ -37,14 +37,18 @@ export function DisplayNameForm({ displayName }: { displayName: string }) {
     }
 
     const { data: updated, error: updateError } = await supabase
-      .from("kitchen_profiles")
-      .update({ display_name: next })
+      .from("profiles")
+      .update({ nickname: next })
       .eq("id", userId)
       .select("id")
 
     setPending(false)
+    if (updateError?.code === "23505") {
+      setError("Tohle jméno už používá jiný účet.")
+      return
+    }
     if (updateError || !updated?.length) {
-      setError("Jméno se nepodařilo změnit. Nejdřív dokončete vstup do kuchyně.")
+      setError("Jméno se nepodařilo změnit.")
       return
     }
 

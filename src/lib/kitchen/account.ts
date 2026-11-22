@@ -17,13 +17,9 @@ export async function loadKitchenAccount(): Promise<KitchenAccount> {
   const user = data.user
   if (!user) return fallback
 
-  const { data: profile } = await supabase
-    .from("kitchen_profiles")
-    .select("display_name")
-    .eq("id", user.id)
-    .maybeSingle()
+  const { data: profile } = await supabase.from("profiles").select("nickname").eq("id", user.id).maybeSingle()
 
-  const displayName = typeof profile?.display_name === "string" ? profile.display_name.trim() : ""
+  const nickname = typeof profile?.nickname === "string" ? profile.nickname.trim() : ""
   const emailName = user.email?.split("@")[0]?.trim() ?? ""
-  return { label: displayName || emailName || "Účet", displayName }
+  return { label: nickname || emailName || "Účet", displayName: nickname }
 }

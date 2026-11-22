@@ -89,9 +89,19 @@ type Table<Row extends Record<string, unknown>, Insert extends Record<string, un
   Relationships: Relationship[]
 }
 
+export type SharedProfile = {
+  id: string
+  nickname: string | null
+}
+
 export type Database = {
   public: {
     Tables: {
+      profiles: Table<
+        SharedProfile,
+        { id: string; nickname?: string | null },
+        { nickname?: string | null }
+      >
       kitchen_households: Table<
         KitchenHousehold,
         { id?: string; name: string; created_at?: string },
