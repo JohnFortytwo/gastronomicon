@@ -1,6 +1,7 @@
 import "server-only"
 
 import { parseModelJson, type ExtractedRecipe } from "@/lib/ai/parse-recipe"
+import { ESTIMATE_UNIT } from "@/lib/kitchen/constants"
 
 const PROMPT = `Jsi kuchyňský archivář. Z dodaného textu nebo fotky vytáhni jeden recept a vrať pouze JSON v tomto tvaru:
 {
@@ -12,10 +13,10 @@ const PROMPT = `Jsi kuchyňský archivář. Z dodaného textu nebo fotky vytáhn
   "base_portions": number,
   "calories_per_portion": number nebo null,
   "kaloricke_tabulky_name": "string nebo null",
-  "ingredients": [{ "name": "string", "amount": number nebo null, "unit": "string nebo null", "category": "Zelenina | Maso | Mléčné | Koření | Přílohy | Ostatní nebo null", "is_hero": boolean }],
+  "ingredients": [{ "name": "string", "amount": number nebo null, "unit": "g | ml | ks | ${ESTIMATE_UNIT} nebo null", "category": null, "is_hero": boolean }],
   "steps": [{ "step_number": number, "instruction": "string" }]
 }
-Zachovej jazyk zdroje. Hlavní surovinu jídla označ is_hero true, sůl, tuk a vodu nech false. Nevymýšlej suroviny, které ve zdroji nejsou.`
+Zachovej jazyk zdroje. Hlavní surovinu jídla označ is_hero true, sůl, tuk a vodu nech false. Nevymýšlej suroviny, které ve zdroji nejsou. Jednotku suroviny uveď jen jako g, ml, ks, nebo "${ESTIMATE_UNIT}". "${ESTIMATE_UNIT}" použij, když zdroj množství neudává přesně a kuchař ho má odhadnout, třeba sůl, pepř nebo koření. V tom případě dej amount null. Když množství jednotku nemá a nejde o odhad, dej unit null.`
 
 function isBlockedHost(hostname: string) {
   const host = hostname.toLowerCase().replace(/^\[|\]$/g, "")
@@ -45,6 +46,13 @@ function isBlockedHost(hostname: string) {
   return false
 }
 
+function isTimeout(error: unknown) {
+  return (
+    error instanceof Error &&
+    (error.name === "TimeoutError" || error.name === "AbortError" || /aborted due to timeout/i.test(error.message))
+  )
+}
+
 function htmlToText(html: string) {
   return html
     .replace(/<script[\s\S]*?<\/script>/gi, " ")
@@ -70,12 +78,21 @@ async function readPublicText(rawUrl: string) {
     if (isBlockedHost(current.hostname)) {
       throw new Error("Tahle adresa vede do soukromé sítě. Použijte veřejný odkaz.")
     }
-    const response = await fetch(current, {
-      redirect: "manual",
-      headers: { accept: "text/html, text/plain, application/json" },
-      signal: AbortSignal.timeout(8000),
-      cache: "no-store",
-    })
+    let response: Response
+    try {
+      response = await fetch(current, {
+        redirect: "manual",
+        headers: {
+          accept: "text/html, text/plain, application/json",
+          "user-agent": "Gastronomicon/1.0 (recipe import)",
+        },
+        signal: AbortSignal.timeout(12_000),
+        cache: "no-store",
+      })
+    } catch (error) {
+      if (isTimeout(error)) throw new Error("Stránku s receptem se nepodařilo včas otevřít.")
+      throw new Error("Stránku s receptem se nepodařilo otevřít.")
+    }
     if (response.status >= 300 && response.status < 400) {
       const location = response.headers.get("location")
       if (!location) throw new Error("Přesměrování receptu nemá cíl.")
@@ -101,34 +118,48 @@ async function askGemini(parts: Array<Record<string, unknown>>): Promise<Extract
     throw new Error("Gemini API není nakonfigurované. Doplňte GEMINI_API_KEY.")
   }
 
-  const model = process.env.GEMINI_MODEL || "gemini-2.5-flash"
-  const response = await fetch(
-    `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent`,
-    {
-      method: "POST",
-      headers: {
-        "content-type": "application/json",
-        "x-goog-api-key": apiKey,
-      },
-      signal: AbortSignal.timeout(30_000),
-      body: JSON.stringify({
-        contents: [{ role: "user", parts: [{ text: PROMPT }, ...parts] }],
-        generationConfig: {
-          temperature: 0.2,
-          responseMimeType: "application/json",
+  const model = process.env.GEMINI_MODEL || "gemini-3.8-flash"
+  let response: Response
+  try {
+    response = await fetch(
+      `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent`,
+      {
+        method: "POST",
+        headers: {
+          "content-type": "application/json",
+          "x-goog-api-key": apiKey,
         },
-      }),
-    },
-  )
+        signal: AbortSignal.timeout(30_000),
+        body: JSON.stringify({
+          contents: [{ role: "user", parts: [{ text: PROMPT }, ...parts] }],
+          generationConfig: {
+            temperature: 0.2,
+            responseMimeType: "application/json",
+            maxOutputTokens: 8192,
+            thinkingConfig: { thinkingBudget: 0 },
+          },
+        }),
+      },
+    )
+  } catch (error) {
+    if (isTimeout(error)) throw new Error("Model nestihl odpovědět. Zkuste import znovu za chvíli.")
+    throw new Error("Galaktická kuchyně teď neodpovídá. Zkuste import znovu za chvíli.")
+  }
 
   if (!response.ok) {
+    const detail = (await response.text().catch(() => "")).replace(/AIza[0-9A-Za-z_-]{10,}/g, "[key]").slice(0, 300)
+    console.error("Gemini import failed", response.status, detail)
     throw new Error("Galaktická kuchyně teď neodpovídá. Zkuste import znovu za chvíli.")
   }
 
   const payload = (await response.json()) as {
-    candidates?: Array<{ content?: { parts?: Array<{ text?: string }> } }>
+    candidates?: Array<{ content?: { parts?: Array<{ text?: string; thought?: boolean }> } }>
   }
-  const text = payload.candidates?.[0]?.content?.parts?.map((part) => part.text ?? "").join("") ?? ""
+  const text =
+    payload.candidates?.[0]?.content?.parts
+      ?.filter((part) => part.thought !== true)
+      .map((part) => part.text ?? "")
+      .join("") ?? ""
   if (!text) throw new Error("Model nevrátil recept.")
 
   try {
@@ -140,14 +171,22 @@ async function askGemini(parts: Array<Record<string, unknown>>): Promise<Extract
   }
 }
 
-export async function extractRecipeFromUrl(url: string) {
+export async function recipePartsFromUrl(url: string) {
   const text = await readPublicText(url)
-  return askGemini([{ text: `Zdrojová stránka:\n${text}` }])
+  return [{ text: `Zdrojová stránka:\n${text}` }]
+}
+
+export async function extractPreparedRecipe(parts: Array<Record<string, unknown>>) {
+  return askGemini(parts)
+}
+
+export async function extractRecipeFromUrl(url: string) {
+  return extractPreparedRecipe(await recipePartsFromUrl(url))
 }
 
 const ALLOWED_IMAGE_TYPES = new Set(["image/jpeg", "image/png", "image/webp", "image/gif"])
 
-export async function extractRecipeFromPhoto(imageBase64: string, mimeType: string) {
+export async function recipePartsFromPhoto(imageBase64: string, mimeType: string) {
   if (!ALLOWED_IMAGE_TYPES.has(mimeType)) {
     throw new Error("Podporujeme fotky JPEG, PNG, WEBP a GIF.")
   }
@@ -155,14 +194,18 @@ export async function extractRecipeFromPhoto(imageBase64: string, mimeType: stri
   if (!data || data.length > 5_500_000) {
     throw new Error("Fotka je příliš velká. Použijte snímek do 4 MB.")
   }
-  return askGemini([
+  return [
     {
       inlineData: {
         mimeType,
         data,
       },
     },
-  ])
+  ]
+}
+
+export async function extractRecipeFromPhoto(imageBase64: string, mimeType: string) {
+  return extractPreparedRecipe(await recipePartsFromPhoto(imageBase64, mimeType))
 }
 
 export function geminiConfigured() {

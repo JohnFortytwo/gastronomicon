@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server"
 import { AI_MONTHLY_LIMIT } from "@/lib/kitchen/constants"
 import { pragueMonthStartIso } from "@/lib/kitchen/month"
-import { extractRecipeFromPhoto, extractRecipeFromUrl, geminiConfigured } from "@/lib/ai/gemini"
+import { extractPreparedRecipe, geminiConfigured, recipePartsFromPhoto, recipePartsFromUrl } from "@/lib/ai/gemini"
 import { hasSupabaseEnv } from "@/lib/supabase/env"
 import { createClient } from "@/lib/supabase/server"
 
@@ -71,6 +71,21 @@ export async function POST(request: Request) {
     )
   }
 
+  const remainingBefore = Math.max(0, AI_MONTHLY_LIMIT - (count ?? 0))
+
+  let parts: Array<Record<string, unknown>>
+  try {
+    parts =
+      source === "url_import"
+        ? await recipePartsFromUrl(typeof payload.url === "string" ? payload.url : "")
+        : await recipePartsFromPhoto(
+            typeof payload.imageBase64 === "string" ? payload.imageBase64 : "",
+            typeof payload.mimeType === "string" ? payload.mimeType : "",
+          )
+  } catch (error) {
+    return NextResponse.json({ error: importError(error), remaining: remainingBefore }, { status: 422 })
+  }
+
   const { error: logError } = await supabase.from("kitchen_ai_usage_logs").insert({
     household_id: profile.household_id,
     user_id: user.id,
@@ -78,26 +93,28 @@ export async function POST(request: Request) {
   })
 
   if (logError) {
-    return NextResponse.json({ error: "Volání se nepodařilo zapsat, model jsme nespustili." }, { status: 500 })
+    return NextResponse.json({ error: "Volání se nepodařilo zapsat, model jsme nespustili.", remaining: remainingBefore }, { status: 500 })
   }
 
-  const remaining = Math.max(0, AI_MONTHLY_LIMIT - (count ?? 0) - 1)
+  const remaining = remainingBefore - 1
 
   try {
-    const recipe =
-      source === "url_import"
-        ? await extractRecipeFromUrl(typeof payload.url === "string" ? payload.url : "")
-        : await extractRecipeFromPhoto(
-            typeof payload.imageBase64 === "string" ? payload.imageBase64 : "",
-            typeof payload.mimeType === "string" ? payload.mimeType : "",
-          )
-
+    const recipe = await extractPreparedRecipe(parts)
     return NextResponse.json({ recipe, remaining })
   } catch (error) {
-    const message = error instanceof Error ? error.message : "Import se nepovedl."
     return NextResponse.json(
-      { error: `${message} Volání se započítalo do měsíčního limitu.`, remaining },
+      { error: `${importError(error)} Volání se započítalo do měsíčního limitu.`, remaining },
       { status: 502 },
     )
   }
+}
+
+function importError(error: unknown) {
+  if (
+    error instanceof Error &&
+    (error.name === "TimeoutError" || error.name === "AbortError" || /aborted due to timeout/i.test(error.message))
+  ) {
+    return "Model nestihl odpovědět. Zkuste import znovu za chvíli."
+  }
+  return error instanceof Error ? error.message : "Import se nepovedl."
 }

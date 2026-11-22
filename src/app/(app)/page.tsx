@@ -1,6 +1,7 @@
 import { Suspense } from "react"
 import Link from "next/link"
 import { redirect } from "next/navigation"
+import { connection } from "next/server"
 import { GalacticLoader } from "@/components/galactic-loader"
 import { HomeGuide } from "@/components/home-guide"
 import { OnboardingCard } from "@/components/onboarding-card"
@@ -18,6 +19,7 @@ export default function HomePage() {
 }
 
 async function HomeContent() {
+  await connection()
   const access = await getKitchenAccess()
   if (access.status === "anonymous") redirect("/login")
   if (access.status === "unconfigured") {

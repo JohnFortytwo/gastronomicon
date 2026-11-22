@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react"
 import { Check, Star } from "lucide-react"
-import { CATEGORY_LABEL, RELATION_LABEL } from "@/lib/kitchen/constants"
+import { CATEGORY_LABEL, ESTIMATE_UNIT, RELATION_LABEL } from "@/lib/kitchen/constants"
 import { formatCzechNumber, formatMinutes } from "@/lib/kitchen/format"
 import { equivalentPortions, scaleAmount, scaleFactor, totalCalories, type EaterCounts } from "@/lib/kitchen/portions"
 import type { StudioCompanion, StudioRecipe, TableDefaults } from "@/types/recipe-view"
@@ -101,7 +101,8 @@ export function RecipeStudio({
         unit: ingredient.unit,
         category: ingredient.category,
         isHero: ingredient.isHero,
-        scaled: ingredient.amount == null ? null : scaleAmount(ingredient.amount, factor),
+        scaled:
+          ingredient.unit === ESTIMATE_UNIT || ingredient.amount == null ? null : scaleAmount(ingredient.amount, factor),
         sourceTitle: source.title,
       }))
     })
@@ -231,7 +232,9 @@ export function RecipeStudio({
         </div>
         {groups.map(([category, group]) => (
           <div key={category} className="flex flex-col gap-1">
-            <h3 className="px-2 font-mono text-xs tracking-widest text-muted-foreground uppercase">{category}</h3>
+            {groups.length === 1 && category === "Ostatní" ? null : (
+              <h3 className="px-2 font-mono text-xs tracking-widest text-muted-foreground uppercase">{category}</h3>
+            )}
             {group.map((line) => {
               const isChecked = Boolean(checked[line.key])
               const amount =

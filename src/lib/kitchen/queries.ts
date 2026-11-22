@@ -2,6 +2,7 @@ import "server-only"
 
 import { createClient } from "@/lib/supabase/server"
 import { asAmount, asCategory, asRelation } from "@/lib/kitchen/format"
+import { pragueMonthStartIso } from "@/lib/kitchen/month"
 import type { KitchenRecipe, KitchenRecipeIngredient, KitchenRecipeStep } from "@/types/database"
 import type {
   PickerRecipe,
@@ -9,6 +10,17 @@ import type {
   StudioCompanion,
   StudioRecipe,
 } from "@/types/recipe-view"
+
+export async function monthlyAiCallCount(householdId: string) {
+  const supabase = await createClient()
+  const { count, error } = await supabase
+    .from("kitchen_ai_usage_logs")
+    .select("id", { count: "exact", head: true })
+    .eq("household_id", householdId)
+    .gte("created_at", pragueMonthStartIso())
+  if (error) return null
+  return count ?? 0
+}
 
 function readError() {
   return "Recepty se nepodařilo načíst. Zkontrolujte migraci kitchen_ a oprávnění."

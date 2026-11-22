@@ -5,7 +5,8 @@ import { OnboardingCard } from "@/components/onboarding-card"
 import { RecipeCreator } from "@/components/recipe-creator"
 import { SetupCard } from "@/components/setup-card"
 import { getKitchenAccess } from "@/lib/kitchen/context"
-import { listPickerRecipes } from "@/lib/kitchen/queries"
+import { AI_MONTHLY_LIMIT } from "@/lib/kitchen/constants"
+import { listPickerRecipes, monthlyAiCallCount } from "@/lib/kitchen/queries"
 
 export default function NewRecipePage() {
   return (
@@ -28,6 +29,10 @@ async function NewRecipeContent() {
   }
   if (access.status === "needs-household") return <OnboardingCard />
 
-  const recipes = await listPickerRecipes(access.household.id)
-  return <RecipeCreator householdId={access.household.id} recipes={recipes} />
+  const [recipes, usedCalls] = await Promise.all([
+    listPickerRecipes(access.household.id),
+    monthlyAiCallCount(access.household.id),
+  ])
+  const aiRemaining = usedCalls == null ? null : Math.max(0, AI_MONTHLY_LIMIT - usedCalls)
+  return <RecipeCreator householdId={access.household.id} recipes={recipes} aiRemaining={aiRemaining} />
 }
