@@ -22,6 +22,7 @@ export type KitchenProfile = {
   default_adults: number
   default_kids: number
   default_gourmands: number
+  badges: Record<string, string> | string[]
   created_at: string
 }
 
@@ -105,6 +106,7 @@ export type Database = {
           default_adults?: number
           default_kids?: number
           default_gourmands?: number
+          badges?: Record<string, string> | string[]
           created_at?: string
         },
         {
@@ -114,6 +116,7 @@ export type Database = {
           default_adults?: number
           default_kids?: number
           default_gourmands?: number
+          badges?: Record<string, string> | string[]
           created_at?: string
         }
       >

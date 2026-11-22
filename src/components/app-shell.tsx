@@ -2,11 +2,12 @@
 
 import { Suspense, type ReactNode } from "react"
 import { useCookMode, CookModeProvider } from "@/components/cook-mode"
+import { BadgeUnlockNotice } from "@/components/badge-unlock-notice"
 import { Header } from "@/components/header"
 import { MobileNav } from "@/components/mobile-nav"
 import { cn } from "@/lib/utils"
 
-function ShellFrame({ children }: { children: ReactNode }) {
+function ShellFrame({ children, accountLabel }: { children: ReactNode; accountLabel: string }) {
   const { cookMode } = useCookMode()
 
   return (
@@ -17,7 +18,8 @@ function ShellFrame({ children }: { children: ReactNode }) {
       >
         Přeskočit na obsah
       </a>
-      {cookMode ? null : <Header />}
+      {cookMode ? null : <Header accountLabel={accountLabel} />}
+      <BadgeUnlockNotice />
       <main id="obsah" className={cn("mx-auto flex w-full max-w-lg flex-1 flex-col px-4 pt-5", cookMode ? "pb-10" : "pb-28")}>
         {children}
         {cookMode ? null : (
@@ -35,10 +37,10 @@ function ShellFrame({ children }: { children: ReactNode }) {
   )
 }
 
-export function AppShell({ children }: { children: ReactNode }) {
+export function AppShell({ children, accountLabel }: { children: ReactNode; accountLabel: string }) {
   return (
     <CookModeProvider>
-      <ShellFrame>{children}</ShellFrame>
+      <ShellFrame accountLabel={accountLabel}>{children}</ShellFrame>
     </CookModeProvider>
   )
 }
