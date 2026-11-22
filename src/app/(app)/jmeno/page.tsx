@@ -1,3 +1,4 @@
+import { Suspense } from "react"
 import type { Metadata } from "next"
 import Link from "next/link"
 import { DisplayNameForm } from "@/components/display-name-form"
@@ -8,7 +9,15 @@ export const metadata: Metadata = {
   title: "Jméno",
 }
 
-export default async function DisplayNamePage() {
+export default function DisplayNamePage() {
+  return (
+    <Suspense fallback={<p className="text-base text-muted-foreground">Načítám jméno…</p>}>
+      <DisplayNameContent />
+    </Suspense>
+  )
+}
+
+async function DisplayNameContent() {
   const account = await loadKitchenAccount()
 
   return (

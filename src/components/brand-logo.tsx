@@ -12,13 +12,13 @@ export function BrandLogo() {
   return (
     <>
       <img
-        src="/brand/logo-light.png"
+        src="/LOGO-light.jpg"
         alt="Gastronomicon"
         className="h-10 w-auto max-w-[46vw] object-contain object-left dark:hidden"
         onError={() => setFailed(true)}
       />
       <img
-        src="/brand/logo-dark.png"
+        src="/LOGO-dark.jpg"
         alt=""
         className="hidden h-10 w-auto max-w-[46vw] object-contain object-left dark:block"
         onError={() => setFailed(true)}
